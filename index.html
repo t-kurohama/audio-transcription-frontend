@@ -5,70 +5,104 @@
   <title>音声文字起こし</title>
   <style>
     body {
-      font-family: sans-serif;
-      max-width: 1200px;
-      margin: 40px auto;
-      padding: 0 20px;
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
     }
-    #downloadBtn {
-      background-color: #4CAF50;
+    
+    h1 {
+      color: #333;
+    }
+    
+    .upload-section {
+      margin: 30px 0;
+      padding: 20px;
+      border: 2px dashed #ccc;
+      border-radius: 8px;
+      background: #f9f9f9;
+    }
+    
+    input[type="file"] {
+      margin: 10px 0;
+    }
+    
+    button {
+      background: #0066cc;
       color: white;
-      padding: 12px 24px;
       border: none;
-      border-radius: 4px;
-      cursor: pointer;
+      padding: 12px 24px;
+      border-radius: 6px;
       font-size: 16px;
-      margin: 20px 0;
+      cursor: pointer;
+      margin-top: 10px;
     }
-    #downloadBtn:hover {
-      background-color: #45a049;
+    
+    button:hover {
+      background: #0052a3;
     }
+    
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    
     #status {
-      font-size: 18px;
       margin: 20px 0;
-      font-weight: bold;
-    }
-    #result {
-      background-color: #f5f5f5;
       padding: 15px;
-      border-radius: 4px;
-      overflow-x: auto;
-      max-height: 600px;
-      overflow-y: auto;
+      border-radius: 6px;
+      font-weight: 500;
+      display: none;
     }
-    button[onclick="transcribe()"] {
-      background-color: #2196F3;
-      color: white;
-      padding: 12px 24px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 16px;
-      margin-left: 10px;
+    
+    #status.processing {
+      display: block;
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      color: #856404;
     }
-    button[onclick="transcribe()"]:hover {
-      background-color: #0b7dda;
+    
+    #status.success {
+      display: block;
+      background: #d4edda;
+      border: 1px solid #28a745;
+      color: #155724;
+    }
+    
+    #status.error {
+      display: block;
+      background: #f8d7da;
+      border: 1px solid #dc3545;
+      color: #721c24;
+    }
+    
+    .info-text {
+      margin-top: 10px;
+      padding: 10px;
+      background: #e7f3ff;
+      border-left: 4px solid #0066cc;
+      border-radius: 4px;
+      display: none;
+    }
+    
+    .info-text.show {
+      display: block;
     }
   </style>
 </head>
 <body>
   <h1>音声文字起こし</h1>
-  <div>
+  
+  <div class="upload-section">
     <input type="file" id="audioFile" accept="audio/*">
-    <button onclick="transcribe()">文字起こし開始</button>
+    <br>
+    <button id="transcribeBtn" onclick="transcribe()">文字起こし開始</button>
   </div>
   
   <div id="status"></div>
-  
-  <button id="downloadBtn" style="display:none;" onclick="downloadResult()">
-    💾 JSONをダウンロード
-  </button>
-  
-  <pre id="result"></pre>
+  <div id="infoText" class="info-text"></div>
 
   <script>
-    let transcriptionResult = null;
-
     async function transcribe() {
       const file = document.getElementById('audioFile').files[0];
       if (!file) {
@@ -76,11 +110,18 @@
         return;
       }
 
-      // 初期化
-      document.getElementById('status').textContent = '処理中...';
-      document.getElementById('result').textContent = '';
-      document.getElementById('downloadBtn').style.display = 'none';
-      transcriptionResult = null;
+      // ボタン無効化
+      const btn = document.getElementById('transcribeBtn');
+      btn.disabled = true;
+      btn.textContent = 'アップロード中...';
+
+      // ステータス表示
+      const statusEl = document.getElementById('status');
+      statusEl.className = 'processing';
+      statusEl.textContent = 'ファイルをアップロードしています...';
+
+      // 情報テキストを隠す
+      document.getElementById('infoText').classList.remove('show');
 
       const formData = new FormData();
       formData.append('audio', file);
@@ -91,48 +132,30 @@
           body: formData
         });
 
-        const result = await response.json();
-        
-        if (result.error) {
-          document.getElementById('status').textContent = 'エラー: ' + result.error;
-          return;
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        // 成功時
-        transcriptionResult = result;
-        document.getElementById('status').textContent = '完了！';
-        document.getElementById('result').textContent = JSON.stringify(result, null, 2);
-        document.getElementById('downloadBtn').style.display = 'block';
-        
+        const result = await response.json();
+
+        // 成功表示
+        statusEl.className = 'success';
+        statusEl.textContent = '処理を開始しました。完了したらSlackで通知します。';
+
+        // 情報表示
+        const infoEl = document.getElementById('infoText');
+        infoEl.textContent = `ジョブID: ${result.jobId || 'N/A'}\n\nこのタブは閉じて問題ありません。処理完了までお待ちください（通常15-30分程度）。`;
+        infoEl.classList.add('show');
+
       } catch (error) {
-        document.getElementById('status').textContent = 'エラー: ' + error.message;
-      }
-    }
-
-    function downloadJSON(data, filename) {
-      const jsonStr = JSON.stringify(data, null, 2);
-      const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-
-    function generateFilename() {
-      const now = new Date();
-      const timestamp = now.toISOString().slice(0, 19).replace(/:/g, '-');
-      return `segments_${timestamp}.json`;
-    }
-
-    function downloadResult() {
-      if (transcriptionResult) {
-        downloadJSON(transcriptionResult, generateFilename());
-      } else {
-        alert('ダウンロードするデータがありません');
+        // エラー表示
+        statusEl.className = 'error';
+        statusEl.textContent = 'エラー: ' + error.message;
+        console.error('Error:', error);
+      } finally {
+        // ボタン復帰
+        btn.disabled = false;
+        btn.textContent = '文字起こし開始';
       }
     }
   </script>
