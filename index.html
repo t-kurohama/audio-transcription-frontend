@@ -3,15 +3,72 @@
 <head>
   <meta charset="UTF-8">
   <title>音声文字起こし</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 1200px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+    #downloadBtn {
+      background-color: #4CAF50;
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 20px 0;
+    }
+    #downloadBtn:hover {
+      background-color: #45a049;
+    }
+    #status {
+      font-size: 18px;
+      margin: 20px 0;
+      font-weight: bold;
+    }
+    #result {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    button[onclick="transcribe()"] {
+      background-color: #2196F3;
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-left: 10px;
+    }
+    button[onclick="transcribe()"]:hover {
+      background-color: #0b7dda;
+    }
+  </style>
 </head>
 <body>
   <h1>音声文字起こし</h1>
-  <input type="file" id="audioFile" accept="audio/*">
-  <button onclick="transcribe()">文字起こし開始</button>
+  <div>
+    <input type="file" id="audioFile" accept="audio/*">
+    <button onclick="transcribe()">文字起こし開始</button>
+  </div>
+  
   <div id="status"></div>
+  
+  <button id="downloadBtn" style="display:none;" onclick="downloadResult()">
+    💾 JSONをダウンロード
+  </button>
+  
   <pre id="result"></pre>
 
   <script>
+    let transcriptionResult = null;
+
     async function transcribe() {
       const file = document.getElementById('audioFile').files[0];
       if (!file) {
@@ -19,8 +76,11 @@
         return;
       }
 
+      // 初期化
       document.getElementById('status').textContent = '処理中...';
       document.getElementById('result').textContent = '';
+      document.getElementById('downloadBtn').style.display = 'none';
+      transcriptionResult = null;
 
       const formData = new FormData();
       formData.append('audio', file);
@@ -32,10 +92,47 @@
         });
 
         const result = await response.json();
+        
+        if (result.error) {
+          document.getElementById('status').textContent = 'エラー: ' + result.error;
+          return;
+        }
+
+        // 成功時
+        transcriptionResult = result;
         document.getElementById('status').textContent = '完了！';
         document.getElementById('result').textContent = JSON.stringify(result, null, 2);
+        document.getElementById('downloadBtn').style.display = 'block';
+        
       } catch (error) {
         document.getElementById('status').textContent = 'エラー: ' + error.message;
+      }
+    }
+
+    function downloadJSON(data, filename) {
+      const jsonStr = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function generateFilename() {
+      const now = new Date();
+      const timestamp = now.toISOString().slice(0, 19).replace(/:/g, '-');
+      return `segments_${timestamp}.json`;
+    }
+
+    function downloadResult() {
+      if (transcriptionResult) {
+        downloadJSON(transcriptionResult, generateFilename());
+      } else {
+        alert('ダウンロードするデータがありません');
       }
     }
   </script>
