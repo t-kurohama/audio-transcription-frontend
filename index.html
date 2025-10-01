@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>音声文字起こし</title>
+</head>
+<body>
+  <h1>音声文字起こし</h1>
+  <input type="file" id="audioFile" accept="audio/*">
+  <button onclick="transcribe()">文字起こし開始</button>
+  <div id="status"></div>
+  <pre id="result"></pre>
+
+  <script>
+    async function transcribe() {
+      const file = document.getElementById('audioFile').files[0];
+      if (!file) {
+        alert('ファイルを選択してください');
+        return;
+      }
+
+      document.getElementById('status').textContent = '処理中...';
+      document.getElementById('result').textContent = '';
+
+      const formData = new FormData();
+      formData.append('audio', file);
+
+      try {
+        const response = await fetch('https://audio-transcription.throbbing-shadow-24bc.workers.dev', {
+          method: 'POST',
+          body: formData
+        });
+
+        const result = await response.json();
+        document.getElementById('status').textContent = '完了！';
+        document.getElementById('result').textContent = JSON.stringify(result, null, 2);
+      } catch (error) {
+        document.getElementById('status').textContent = 'エラー: ' + error.message;
+      }
+    }
+  </script>
+</body>
+</html>
