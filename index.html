@@ -23,6 +23,38 @@
       background: #f9f9f9;
     }
     
+    .form-group {
+      margin-bottom: 15px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      color: #555;
+    }
+    
+    .form-group input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    
+    .form-group input[type="text"]:focus {
+      outline: none;
+      border-color: #0066cc;
+    }
+    
+    .form-group small {
+      display: block;
+      margin-top: 5px;
+      color: #888;
+      font-size: 12px;
+    }
+    
     input[type="file"] {
       margin: 10px 0;
     }
@@ -36,6 +68,7 @@
       font-size: 16px;
       cursor: pointer;
       margin-top: 10px;
+      width: 100%;
     }
     
     button:hover {
@@ -94,8 +127,23 @@
   <h1>音声文字起こし</h1>
   
   <div class="upload-section">
-    <input type="file" id="audioFile" accept="audio/*">
-    <br>
+    <div class="form-group">
+      <label for="clientId">クライアントID</label>
+      <input type="text" id="clientId" placeholder="cl0001" required>
+      <small>例: cl0001（clから始まる数字）</small>
+    </div>
+    
+    <div class="form-group">
+      <label for="videoId">動画ID</label>
+      <input type="text" id="videoId" placeholder="0001" required>
+      <small>例: 0001（数字のみ）</small>
+    </div>
+    
+    <div class="form-group">
+      <label for="audioFile">音声ファイル</label>
+      <input type="file" id="audioFile" accept="audio/*" required>
+    </div>
+    
     <button id="transcribeBtn" onclick="transcribe()">文字起こし開始</button>
   </div>
   
@@ -104,9 +152,25 @@
 
   <script>
     async function transcribe() {
+      const clientId = document.getElementById('clientId').value.trim();
+      const videoId = document.getElementById('videoId').value.trim();
       const file = document.getElementById('audioFile').files[0];
-      if (!file) {
-        alert('ファイルを選択してください');
+
+      // バリデーション
+      if (!clientId || !videoId || !file) {
+        alert('すべての項目を入力してください');
+        return;
+      }
+
+      // クライアントIDのバリデーション
+      if (!/^cl\d+$/.test(clientId)) {
+        alert('クライアントIDは「cl」から始まる数字で入力してください（例: cl0001）');
+        return;
+      }
+
+      // 動画IDのバリデーション
+      if (!/^\d+$/.test(videoId)) {
+        alert('動画IDは数字のみで入力してください（例: 0001）');
         return;
       }
 
@@ -124,10 +188,12 @@
       document.getElementById('infoText').classList.remove('show');
 
       const formData = new FormData();
+      formData.append('client', clientId);
+      formData.append('vid', videoId);
       formData.append('audio', file);
 
       try {
-        const response = await fetch('https://flat-paper-c3c1.throbbing-shadow-24bc.workers.dev', {
+        const response = await fetch('https://audio-transcription.throbbing-shadow-24bc.workers.dev', {
           method: 'POST',
           body: formData
         });
@@ -144,7 +210,7 @@
 
         // 情報表示
         const infoEl = document.getElementById('infoText');
-        infoEl.textContent = `ジョブID: ${result.jobId || 'N/A'}\n\nこのタブは閉じて問題ありません。処理完了までお待ちください（通常15-30分程度）。`;
+        infoEl.textContent = `クライアント: ${clientId}\n動画ID: ${videoId}\nジョブID: ${result.jobId || 'N/A'}\n\nこのタブは閉じて問題ありません。処理完了までお待ちください（通常15-30分程度）。`;
         infoEl.classList.add('show');
 
       } catch (error) {
